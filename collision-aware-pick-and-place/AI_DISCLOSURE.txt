@@ -1,0 +1,2 @@
+Describe any generative-AI tools used for this assignment, what you used them for,
+and how you verified the resulting work.  If none were used, write "None".

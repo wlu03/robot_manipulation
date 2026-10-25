@@ -1,0 +1,4 @@
+.DS_Store
+__pycache__/
+*.py[cod]
+mp2_rrt_checkpoint.svg
