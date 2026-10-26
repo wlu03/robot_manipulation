@@ -40,12 +40,17 @@ def edge_is_valid(
     total_length = float(np.linalg.norm(delta))
     segment_count = max(1, int(np.ceil(total_length / edge_step)))
 
-    for sample_index in range(segment_count + 1):
+    if not state_is_valid(start.copy()):
+        return False
+    if total_length == 0.0:
+        return True
+
+    for sample_index in range(1, segment_count):
         alpha = sample_index / segment_count
         if not state_is_valid(start + alpha * delta):
             return False
 
-    return True
+    return bool(state_is_valid(goal.copy()))
 
 
 def _extend(

@@ -147,7 +147,7 @@ def generate_grasp_candidates(
     if point_count < 2 or sample_count <= 0 or maximum_candidates <= 0:
         return []
 
-    candidates: list[GraspCandidate] = []
+    base_candidates: list[GraspCandidate] = []
     sampled_pairs: set[tuple[int, int]] = set()
 
     for _ in range(sample_count):
@@ -197,7 +197,7 @@ def generate_grasp_candidates(
             contact_a, contact_b, preferred_approach=preferred_approach
         )
 
-        candidates.append(
+        base_candidates.append(
             GraspCandidate(
                 contact_a_object=contact_a.copy(),
                 contact_b_object=contact_b.copy(),
@@ -207,5 +207,41 @@ def generate_grasp_candidates(
             )
         )
 
+    base_candidates.sort(key=lambda candidate: candidate.score, reverse=True)
+
+    # Preserve broad contact coverage while reserving one-eighth of the output
+    # for alternate approaches to the best contact pairs. A pair fixes local
+    # +x but leaves a free roll about that axis. Postmultiplication by R_x
+    # changes +y/+z without changing contacts, center, width, or closing axis.
+    base_fraction = 7.0 / 8.0
+    base_count = min(
+        len(base_candidates),
+        max(1, int(np.ceil(base_fraction * maximum_candidates))),
+    )
+    candidates = base_candidates[:base_count]
+    variant_slots = maximum_candidates - len(candidates)
+    # Spread the variant budget across a wider score range instead of using
+    # consecutive pairs; with a cap of 140 this selects ranks 0, 2, ..., 32.
+    source_limit = min(len(base_candidates), 2 * variant_slots)
+    for source_index in range(0, source_limit, 2):
+        base_candidate = base_candidates[source_index]
+        roll = -np.pi / 12.0
+        c, s = np.cos(roll), np.sin(roll)
+        R_x = np.array(
+            [[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]],
+            dtype=np.float64,
+        )
+        T_object_grasp = base_candidate.T_object_grasp.copy()
+        T_object_grasp[:3, :3] = T_object_grasp[:3, :3] @ R_x
+        candidates.append(
+            GraspCandidate(
+                contact_a_object=base_candidate.contact_a_object.copy(),
+                contact_b_object=base_candidate.contact_b_object.copy(),
+                T_object_grasp=T_object_grasp,
+                jaw_width_m=base_candidate.jaw_width_m,
+                score=base_candidate.score,
+            )
+        )
+
     candidates.sort(key=lambda candidate: candidate.score, reverse=True)
-    return candidates[:maximum_candidates]
+    return candidates
