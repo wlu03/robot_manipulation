@@ -1,2 +1,4 @@
-Describe any generative-AI tools used for this assignment, what you used them for,
-and how you verified the resulting work.  If none were used, write "None".
+I used AI tools in order to get a better understanding of different edge cases and test my work. 
+For example, I wrote detailed diagrams and notes regarding the antipodal test. 
+Specifically, I would come up with external test cases for the logic I had implement and go through more cases that had been given.
+This was because in project 1. I passed the local test cases but not the hidden ones. Thus, I needed more robust testing before submitting.

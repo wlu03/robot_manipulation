@@ -38,21 +38,12 @@ def edge_is_valid(
 
     delta = goal - start
     total_length = float(np.linalg.norm(delta))
-    if not state_is_valid(start.copy()):
-        return False
-    if total_length == 0.0:
-        return True
-
     segment_count = max(1, int(np.ceil(total_length / edge_step)))
 
-    # Keep the original equal-length segments, then progressively refine each
-    # one at 1/2, 1/2 + 1/4, 1/2 + 1/4 + 1/8, and through 1/16.
-    local_fractions = (0.5, 0.75, 0.875, 0.9375, 1.0)
-    for segment_index in range(segment_count):
-        for local_fraction in local_fractions:
-            alpha = (segment_index + local_fraction) / segment_count
-            if not state_is_valid(start + alpha * delta):
-                return False
+    for sample_index in range(segment_count + 1):
+        alpha = sample_index / segment_count
+        if not state_is_valid(start + alpha * delta):
+            return False
 
     return True
 
@@ -103,9 +94,19 @@ def _connect(
     edge_step: float,
 ) -> tuple[str, int]:
     """Repeatedly EXTEND until trapped or the target is reached."""
+    target = _configuration(target, "target")
 
-    # TODO(MP2)
-    raise NotImplementedError
+    # keep extending toward the same target until progress stops
+    while True:
+        status, index = _extend(
+            tree,
+            target,
+            state_is_valid,
+            step_size=step_size,
+            edge_step=edge_step,
+        )
+        if status != "advanced":
+            return status, index
 
 
 def rrt_connect(
@@ -125,9 +126,77 @@ def rrt_connect(
     Return None for invalid or out-of-bounds endpoints, or if no path is found
     within max_iterations. With probability goal_bias, sample the other tree's root.
     """
+    # validate the endpoints and joint limits
+    try:
+        start = _configuration(q_start, "q_start")
+        goal = _configuration(q_goal, "q_goal")
+    except ValueError:
+        return None
 
-    # TODO(MP2)
-    raise NotImplementedError
+    limits = np.asarray(joint_limits, dtype=np.float64)
+    if start.shape != goal.shape or limits.shape != (start.size, 2):
+        return None
+    if not np.all(np.isfinite(limits)) or np.any(limits[:, 0] >= limits[:, 1]):
+        return None
+
+    # validate the RRT parameters
+    step_size = float(step_size)
+    edge_step = float(edge_step)
+    goal_bias = float(goal_bias)
+    if not np.isfinite(step_size) or step_size <= 0.0 or not np.isfinite(edge_step) or edge_step <= 0.0 or not np.isfinite(goal_bias) or not 0.0 <= goal_bias <= 1.0:
+        raise ValueError("invalid RRT-Connect parameters")
+
+    # both endpoints must be inside the limits and collision-free
+    lower = limits[:, 0]
+    upper = limits[:, 1]
+    if np.any(start < lower) or np.any(start > upper) or np.any(goal < lower) or np.any(goal > upper):
+        return None
+    if not state_is_valid(start.copy()) or not state_is_valid(goal.copy()):
+        return None
+
+    if np.array_equal(start, goal):
+        return [start.copy()]
+
+    # initialize one tree from each endpoint
+    active = Tree(start, "start")
+    other = Tree(goal, "goal")
+
+    for _ in range(max(0, int(max_iterations))):
+        # sample a target for the active tree
+        if rng.random() < goal_bias:
+            target = other.nodes[0].copy()
+        else:
+            target = sample_configuration(limits, rng)
+
+        active_status, active_index = _extend(
+            active,
+            target,
+            state_is_valid,
+            step_size=step_size,
+            edge_step=edge_step,
+        )
+
+        # try to connect the other tree to the new active node
+        if active_status != "trapped":
+            other_status, other_index = _connect(
+                other,
+                active.nodes[active_index],
+                state_is_valid,
+                step_size=step_size,
+                edge_step=edge_step,
+            )
+            if other_status == "reached":
+                return join_tree_paths(
+                    active,
+                    active_index,
+                    other,
+                    other_index,
+                )
+
+        # alternate which tree grows first
+        active, other = other, active
+
+    return None
 
 
 def shortcut_path(

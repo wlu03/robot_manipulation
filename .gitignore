@@ -1,4 +1,6 @@
 .DS_Store
+.venv/
+armlab_mujoco_simulator/
 __pycache__/
 *.py[cod]
 mp2_rrt_checkpoint.svg
