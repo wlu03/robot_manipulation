@@ -70,9 +70,28 @@ def _extend(
     Return ("trapped"|"advanced"|"reached", node_index): the nearest node's
     index when trapped, otherwise the index of the node at the new configuration.
     """
+    # steer from the nearest node by at most step_size
+    # validate the edge before adding the new node
+    target = _configuration(target, "target")
+    nearest_index = tree.nearest(target)
+    q_near = tree.nodes[nearest_index]
+    distance_to_target = float(np.linalg.norm(target - q_near))
 
-    # TODO(MP2)
-    raise NotImplementedError
+    if distance_to_target == 0.0:
+        if not state_is_valid(q_near.copy()):
+            return ("trapped", nearest_index)
+        return ("reached", nearest_index)
+
+    q_new = steer(q_near, target, step_size=step_size)
+    if np.array_equal(q_new, q_near):
+        return ("trapped", nearest_index)
+
+    if not edge_is_valid(q_near, q_new, state_is_valid, edge_step=edge_step):
+        return ("trapped", nearest_index)
+    new_index = tree.add(q_new, nearest_index)
+    if distance_to_target <= float(step_size):
+        return ("reached", new_index)
+    return ("advanced", new_index)
 
 
 def _connect(
