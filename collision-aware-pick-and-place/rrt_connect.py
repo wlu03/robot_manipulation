@@ -30,9 +30,31 @@ def edge_is_valid(
     edge_step: float = 0.04,
 ) -> bool:
     """Return whether every interpolated configuration on the edge is valid."""
+    start = _configuration(q_a, "q_a")
+    goal = _configuration(q_b, "q_b")
+    edge_step = float(edge_step)
+    if start.shape != goal.shape or not np.isfinite(edge_step) or edge_step <= 0.0:
+        raise ValueError("edge endpoints must match and edge_step must be positive")
 
-    # TODO(MP2)
-    raise NotImplementedError
+    delta = goal - start
+    total_length = float(np.linalg.norm(delta))
+    if not state_is_valid(start.copy()):
+        return False
+    if total_length == 0.0:
+        return True
+
+    segment_count = max(1, int(np.ceil(total_length / edge_step)))
+
+    # Keep the original equal-length segments, then progressively refine each
+    # one at 1/2, 1/2 + 1/4, 1/2 + 1/4 + 1/8, and through 1/16.
+    local_fractions = (0.5, 0.75, 0.875, 0.9375, 1.0)
+    for segment_index in range(segment_count):
+        for local_fraction in local_fractions:
+            alpha = (segment_index + local_fraction) / segment_count
+            if not state_is_valid(start + alpha * delta):
+                return False
+
+    return True
 
 
 def _extend(
